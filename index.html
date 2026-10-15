@@ -6,10 +6,20 @@
     <title>Interference Bearing Triangulator</title>
 
     <style>
+        :root {
+            --blue: #0066cc;
+            --dark-blue: #0b5cab;
+            --green: #16a34a;
+            --red: #dc2626;
+            --amber: #d97706;
+            --slate: #64748b;
+            --bg: #f4f6f8;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             padding: 16px;
-            background-color: #f4f6f8;
+            background-color: var(--bg);
             color: #1a1a1a;
             margin: 0;
         }
@@ -25,13 +35,13 @@
         h1 {
             font-size: 20px;
             margin: 0 0 4px;
-            color: #0b5cab;
+            color: var(--dark-blue);
         }
 
         h2 {
             font-size: 16px;
             margin-top: 0;
-            color: #0b5cab;
+            color: var(--dark-blue);
             border-bottom: 1px solid #e5e7eb;
             padding-bottom: 6px;
         }
@@ -42,12 +52,12 @@
         }
 
         button {
-            background-color: #0066cc;
+            background-color: var(--blue);
             color: #ffffff;
             border: none;
             padding: 12px;
             border-radius: 6px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
             width: 100%;
             cursor: pointer;
@@ -64,8 +74,8 @@
         }
 
         button:focus-visible,
-        a:focus-visible,
-        input:focus-visible {
+        input:focus-visible,
+        a:focus-visible {
             outline: 3px solid #f59e0b;
             outline-offset: 2px;
         }
@@ -77,18 +87,18 @@
         }
 
         .btn-small {
+            width: auto;
+            flex-grow: 1;
             font-size: 12px;
             padding: 8px;
             margin-top: 0;
-            flex-grow: 1;
-            width: auto;
-            background-color: #64748b;
+            background-color: var(--slate);
         }
 
         .output-box {
             background: #f0f7ff;
             padding: 10px;
-            border-left: 4px solid #0066cc;
+            border-left: 4px solid var(--blue);
             font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
             font-size: 13px;
             border-radius: 0 4px 4px 0;
@@ -97,7 +107,12 @@
 
         .output-error {
             background: #fef2f2;
-            border-left-color: #dc2626;
+            border-left-color: var(--red);
+        }
+
+        .output-warning {
+            background: #fffbeb;
+            border-left-color: var(--amber);
         }
 
         .calibration-controls {
@@ -143,14 +158,93 @@
             background: #fee2e2;
             color: #991b1b;
         }
+
+        .status-info {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .observation-row {
+            border: 1px solid #dbe3ed;
+            border-left: 4px solid var(--blue);
+            border-radius: 4px;
+            padding: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .observation-row.inlier {
+            border-left-color: var(--green);
+            background: #f0fdf4;
+        }
+
+        .observation-row.outlier {
+            border-left-color: var(--red);
+            background: #fef2f2;
+        }
+
+        .observation-row.warning {
+            border-left-color: var(--amber);
+            background: #fffbeb;
+        }
+
+        .observation-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: bold;
+        }
+
+        .observation-remove {
+            background: var(--red);
+            width: auto;
+            margin: 0;
+            padding: 5px 8px;
+            font-size: 11px;
+        }
+
+        .plot-container {
+            overflow-x: auto;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+        }
+
+        #local-plot {
+            display: block;
+            width: 100%;
+            min-width: 640px;
+            height: auto;
+            background: #ffffff;
+        }
+
+        .small-note {
+            font-size: 11px;
+            color: var(--slate);
+        }
+
+        .quality-high {
+            color: #166534;
+            font-weight: bold;
+        }
+
+        .quality-medium {
+            color: #a16207;
+            font-weight: bold;
+        }
+
+        .quality-low {
+            color: #b91c1c;
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body>
     <h1>📡 Interference Bearing Triangulator</h1>
-    <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
-        Hold the phone flat and point its top edge along the observed bearing.
-        Results are estimates and require operational validation.
+    <p class="small-note" style="margin-bottom: 12px;">
+        This tool estimates the intersection of manually observed bearings. It does not independently detect or identify an interference source.
     </p>
 
     <div class="card">
@@ -180,10 +274,19 @@
             </span>
         </p>
 
-        <p style="font-size: 11px; color: #64748b;">
+        <p class="small-note">
             Compass Accuracy: ±<span id="compass-acc">--</span>° |
-            Filtered Sensor Heading: <span id="live-raw-heading">--</span>°
+            Filtered Heading: <span id="live-raw-heading">--</span>°
         </p>
+
+        <div
+            id="capture-summary"
+            class="output-box output-warning"
+            style="margin-top: 8px;"
+            aria-live="polite"
+        >
+            No averaged heading capture. Capture a 3-second average before recording an observation.
+        </div>
 
         <div class="btn-group">
             <button
@@ -193,6 +296,15 @@
                 style="flex-grow: 2; margin-top: 0;"
             >
                 Permit & Start Sensors
+            </button>
+
+            <button
+                type="button"
+                id="stop-sensors-btn"
+                onclick="stopSensors()"
+                style="background-color: #64748b; width: auto; margin-top: 0;"
+            >
+                Stop
             </button>
 
             <button
@@ -237,8 +349,7 @@
                         step="1"
                         oninput="updateOffsetFromInput()"
                         aria-label="Heading correction in degrees"
-                    >
-                    °
+                    > °
                 </div>
             </div>
 
@@ -248,7 +359,7 @@
                     class="btn-small"
                     onclick="calibrateToKnownHeading(0)"
                 >
-                    Current Direction Is North (0°)
+                    Current Direction Is North
                 </button>
 
                 <button
@@ -264,25 +375,53 @@
     </div>
 
     <div class="card">
-        <h2>📍 Station Observations</h2>
+        <h2>📍 Observation History</h2>
 
-        <button type="button" onclick="recordStation('A')">Record Station A</button>
-        <div
-            id="point-a-data"
-            class="output-box"
-            style="margin-top: 6px; display: none;"
-            aria-live="polite"
-        ></div>
+        <p class="small-note">
+            Record observations from distinct locations after capturing a stable 3-second heading average.
+        </p>
 
-        <button type="button" onclick="recordStation('B')" style="margin-top: 8px;">
-            Record Station B
+        <button
+            type="button"
+            onclick="recordObservation()"
+            style="background-color: #0f766e;"
+        >
+            Add Observation
         </button>
-        <div
-            id="point-b-data"
-            class="output-box"
-            style="margin-top: 6px; display: none;"
-            aria-live="polite"
-        ></div>
+
+        <div id="observation-history" aria-live="polite"></div>
+
+        <div class="btn-group">
+            <button
+                type="button"
+                class="btn-small"
+                onclick="saveSession()"
+            >
+                Save Locally
+            </button>
+
+            <button
+                type="button"
+                class="btn-small"
+                onclick="exportSession()"
+                style="background-color: #2563eb;"
+            >
+                Export JSON
+            </button>
+
+            <button
+                type="button"
+                class="btn-small"
+                onclick="clearSession()"
+                style="background-color: #dc2626;"
+            >
+                Clear Session
+            </button>
+        </div>
+
+        <p class="small-note">
+            Local save and export features should only be used in accordance with applicable handling, records, and release procedures.
+        </p>
     </div>
 
     <div class="card">
@@ -293,15 +432,31 @@
             onclick="triangulate()"
             style="background-color: #16a34a;"
         >
-            Calculate Bearing Intersection
+            Calculate / Refresh Estimate
         </button>
 
         <div
             id="result-box"
             class="output-box"
-            style="margin-top: 10px; display: none;"
+            style="margin-top: 10px;"
             aria-live="polite"
-        ></div>
+        >
+            Record at least two observations to calculate an intersection estimate.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🗺️ Local Geometry Plot</h2>
+
+        <p class="small-note">
+            Blue/green rays are observations used in the estimate. Red dashed rays are suspected outliers or inconsistent observations.
+        </p>
+
+        <div class="plot-container">
+            <canvas id="local-plot" width="900" height="520">
+                Your browser does not support canvas rendering.
+            </canvas>
+        </div>
     </div>
 
     <script>
@@ -314,33 +469,48 @@
         let liveHeading = null;
         let headingOffset = 0;
 
-        let stationA = null;
-        let stationB = null;
-
         let geoWatchId = null;
         let isOrientationActive = false;
+        let orientationEventName = null;
         let isLocked = false;
-        let isAveraging = false;
 
+        let isAveraging = false;
         let averageReadings = [];
         let averagingInterval = null;
         let averagingTimeout = null;
 
         let smoothedHeading = null;
+        let lastHeadingCapture = null;
+
+        let observations = [];
+        let nextObservationId = 1;
+        let currentSolution = null;
 
         const FILTER_FACTOR = 0.20;
+        const STORAGE_KEY = "interference-bearing-triangulator-v2";
 
         /*
-         * Tune these values for the approved workflow and expected sensor quality.
-         * They are safeguards, not substitutes for operational validation.
+         * Adjust these thresholds for the approved workflow and expected equipment.
+         * They are safeguards, not substitutes for trained human judgment.
          */
         const MAX_GPS_ACCURACY_METERS = 30;
         const MAX_POSITION_AGE_MS = 15000;
+        const MAX_HEADING_CAPTURE_AGE_MS = 60000;
+        const MAX_HEADING_SPREAD_DEG = 15;
+
         const MIN_BASELINE_METERS = 10;
         const MIN_INTERSECTION_ANGLE_DEG = 15;
+        const GOOD_INTERSECTION_ANGLE_DEG = 30;
+
+        const OUTLIER_MIN_THRESHOLD_DEG = 12;
+        const OUTLIER_SPREAD_MULTIPLIER = 2.5;
 
         function normalizeDegrees(value) {
             return ((value % 360) + 360) % 360;
+        }
+
+        function signedAngleDifference(a, b) {
+            return ((a - b + 540) % 360) - 180;
         }
 
         function smoothDegrees(previous, next, factor) {
@@ -361,6 +531,35 @@
             return normalizeDegrees(previous + factor * difference);
         }
 
+        function circularMeanAndSpread(values) {
+            let sinSum = 0;
+            let cosSum = 0;
+
+            for (const value of values) {
+                const radians = value * Math.PI / 180;
+                sinSum += Math.sin(radians);
+                cosSum += Math.cos(radians);
+            }
+
+            const count = values.length;
+            const mean = normalizeDegrees(
+                Math.atan2(sinSum, cosSum) * 180 / Math.PI
+            );
+
+            const resultantLength = Math.sqrt(
+                sinSum * sinSum + cosSum * cosSum
+            ) / count;
+
+            const boundedR = Math.max(0.000001, Math.min(1, resultantLength));
+            const spread = Math.sqrt(-2 * Math.log(boundedR)) * 180 / Math.PI;
+
+            return {
+                mean,
+                spread: Math.min(spread, 180),
+                resultantLength
+            };
+        }
+
         function setGpsBadge(message, isGood) {
             const badge = document.getElementById("gps-status");
             badge.textContent = message;
@@ -377,9 +576,60 @@
                 : "status-badge status-warn";
         }
 
+        function renderCaptureSummary() {
+            const box = document.getElementById("capture-summary");
+
+            if (!lastHeadingCapture) {
+                box.className = "output-box output-warning";
+                box.textContent =
+                    "No averaged heading capture. Capture a 3-second average before recording an observation.";
+                return;
+            }
+
+            const ageSeconds = Math.round(
+                (Date.now() - lastHeadingCapture.timestamp) / 1000
+            );
+
+            const isStable = lastHeadingCapture.spread <= MAX_HEADING_SPREAD_DEG;
+            const isFresh = ageSeconds <= MAX_HEADING_CAPTURE_AGE_MS / 1000;
+
+            box.className = isStable && isFresh
+                ? "output-box"
+                : "output-box output-warning";
+
+            box.textContent =
+                `Heading Capture: ${Math.round(lastHeadingCapture.heading)}° | ` +
+                `Spread: ±${lastHeadingCapture.spread.toFixed(1)}° | ` +
+                `Samples: ${lastHeadingCapture.samples} | ` +
+                `Age: ${ageSeconds}s` +
+                (!isStable ? " | UNSTABLE" : "") +
+                (!isFresh ? " | STALE" : "");
+        }
+
         function initializeSensors() {
             startGPS();
             startOrientation();
+        }
+
+        function stopSensors() {
+            if (geoWatchId !== null && navigator.geolocation) {
+                navigator.geolocation.clearWatch(geoWatchId);
+                geoWatchId = null;
+            }
+
+            if (isOrientationActive && orientationEventName) {
+                window.removeEventListener(
+                    orientationEventName,
+                    handleDeviceOrientation,
+                    true
+                );
+            }
+
+            orientationEventName = null;
+            isOrientationActive = false;
+
+            setGpsBadge("Stopped", false);
+            setSensorBadge("Stopped", false);
         }
 
         function startGPS() {
@@ -406,14 +656,22 @@
                     liveAcc = position.coords.accuracy;
                     livePositionTimestamp = position.timestamp;
 
-                    document.getElementById("live-lat").textContent = liveLat.toFixed(6);
-                    document.getElementById("live-lon").textContent = liveLon.toFixed(6);
-                    document.getElementById("live-acc").textContent = Math.round(liveAcc);
+                    document.getElementById("live-lat").textContent =
+                        liveLat.toFixed(6);
+
+                    document.getElementById("live-lon").textContent =
+                        liveLon.toFixed(6);
+
+                    document.getElementById("live-acc").textContent =
+                        Math.round(liveAcc);
 
                     if (liveAcc <= MAX_GPS_ACCURACY_METERS) {
                         setGpsBadge("Active Fix", true);
                     } else {
-                        setGpsBadge(`Low Accuracy (±${Math.round(liveAcc)}m)`, false);
+                        setGpsBadge(
+                            `Low Accuracy (±${Math.round(liveAcc)}m)`,
+                            false
+                        );
                     }
                 },
                 (error) => {
@@ -434,7 +692,7 @@
 
             if (!window.isSecureContext) {
                 setSensorBadge("HTTPS Required", false);
-                alert("Device orientation access requires a secure HTTPS connection.");
+                alert("Device orientation requires a secure HTTPS connection.");
                 return;
             }
 
@@ -446,7 +704,8 @@
 
             try {
                 if (typeof DeviceOrientationEvent.requestPermission === "function") {
-                    const permissionState = await DeviceOrientationEvent.requestPermission();
+                    const permissionState =
+                        await DeviceOrientationEvent.requestPermission();
 
                     if (permissionState !== "granted") {
                         setSensorBadge("Permission Denied", false);
@@ -455,16 +714,15 @@
                     }
                 }
 
-                /*
-                 * Prefer the absolute event where available. The handler still
-                 * rejects relative alpha values unless a platform compass heading
-                 * is provided.
-                 */
-                const eventName = ("ondeviceorientationabsolute" in window)
+                orientationEventName = ("ondeviceorientationabsolute" in window)
                     ? "deviceorientationabsolute"
                     : "deviceorientation";
 
-                window.addEventListener(eventName, handleDeviceOrientation, true);
+                window.addEventListener(
+                    orientationEventName,
+                    handleDeviceOrientation,
+                    true
+                );
 
                 isOrientationActive = true;
                 setSensorBadge("Waiting for Heading", false);
@@ -497,17 +755,15 @@
                     document.getElementById("compass-acc").textContent =
                         Math.round(event.webkitCompassAccuracy);
                 } else {
-                    document.getElementById("compass-acc").textContent = "Unknown";
+                    document.getElementById("compass-acc").textContent =
+                        "Unknown";
                 }
             } else if (
                 event.alpha !== null &&
                 Number.isFinite(event.alpha) &&
-                (event.absolute === true || event.type === "deviceorientationabsolute")
+                (event.absolute === true ||
+                    event.type === "deviceorientationabsolute")
             ) {
-                /*
-                 * This fallback is accepted only for an absolute Earth-referenced
-                 * orientation event. Relative alpha values are not valid bearings.
-                 */
                 rawHeading = normalizeDegrees(360 - event.alpha);
                 document.getElementById("compass-acc").textContent = "Unknown";
             } else {
@@ -538,7 +794,7 @@
             );
 
             if (isAveraging) {
-                averageReadings.push(liveHeading);
+                averageReadings.push(liveRawHeading);
                 document.getElementById("avg-count").textContent =
                     averageReadings.length;
             }
@@ -563,13 +819,37 @@
             }
         }
 
+        function invalidateHeadingCapture() {
+            lastHeadingCapture = null;
+            renderCaptureSummary();
+        }
+
         function toggleLock() {
             if (liveHeading === null) {
-                alert("No bearing is available to lock.");
+                alert("No heading is available to lock.");
                 return;
             }
 
-            setLock(!isLocked);
+            if (isLocked) {
+                setLock(false);
+                invalidateHeadingCapture();
+            } else {
+                setLock(true);
+            }
+        }
+
+        function cancelAveraging(message) {
+            clearInterval(averagingInterval);
+            clearTimeout(averagingTimeout);
+
+            isAveraging = false;
+
+            document.getElementById("average-btn").disabled = false;
+            document.getElementById("averaging-status").style.display = "none";
+
+            if (message) {
+                alert(message);
+            }
         }
 
         function startAveraging() {
@@ -580,6 +860,8 @@
             if (isLocked) {
                 setLock(false);
             }
+
+            invalidateHeadingCapture();
 
             isAveraging = true;
             averageReadings = [];
@@ -615,24 +897,47 @@
                     return;
                 }
 
-                let sinSum = 0;
-                let cosSum = 0;
+                const capture = circularMeanAndSpread(averageReadings);
 
-                for (const value of averageReadings) {
-                    const radians = value * Math.PI / 180;
-                    sinSum += Math.sin(radians);
-                    cosSum += Math.cos(radians);
-                }
+                liveRawHeading = capture.mean;
+                liveHeading = normalizeDegrees(capture.mean + headingOffset);
 
-                liveHeading = normalizeDegrees(
-                    Math.atan2(sinSum, cosSum) * 180 / Math.PI
-                );
+                lastHeadingCapture = {
+                    rawHeading: capture.mean,
+                    heading: liveHeading,
+                    spread: capture.spread,
+                    samples: averageReadings.length,
+                    timestamp: Date.now()
+                };
+
+                document.getElementById("live-raw-heading").textContent =
+                    Math.round(liveRawHeading);
 
                 document.getElementById("live-heading").textContent =
                     Math.round(liveHeading);
 
+                renderCaptureSummary();
                 setLock(true);
             }, 3000);
+        }
+
+        function refreshHeadingAfterOffsetChange() {
+            if (liveRawHeading !== null) {
+                liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
+
+                document.getElementById("live-heading").textContent =
+                    Math.round(liveHeading);
+            }
+
+            if (lastHeadingCapture) {
+                lastHeadingCapture.heading = normalizeDegrees(
+                    lastHeadingCapture.rawHeading + headingOffset
+                );
+
+                renderCaptureSummary();
+            }
+
+            saveSession();
         }
 
         function updateOffsetFromInput() {
@@ -645,13 +950,7 @@
             }
 
             headingOffset = value;
-
-            if (liveRawHeading !== null) {
-                liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
-
-                document.getElementById("live-heading").textContent =
-                    Math.round(liveHeading);
-            }
+            refreshHeadingAfterOffsetChange();
         }
 
         function calibrateToKnownHeading(knownHeading) {
@@ -660,28 +959,20 @@
                 return;
             }
 
-            let difference = knownHeading - liveRawHeading;
-            headingOffset = normalizeDegrees(difference + 180) - 180;
+            headingOffset = normalizeDegrees(
+                knownHeading - liveRawHeading + 180
+            ) - 180;
 
             document.getElementById("heading-offset").value =
                 Math.round(headingOffset);
 
-            liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
-
-            document.getElementById("live-heading").textContent =
-                Math.round(liveHeading);
+            refreshHeadingAfterOffsetChange();
         }
 
         function resetCalibration() {
             headingOffset = 0;
             document.getElementById("heading-offset").value = "0";
-
-            if (liveRawHeading !== null) {
-                liveHeading = normalizeDegrees(liveRawHeading);
-
-                document.getElementById("live-heading").textContent =
-                    Math.round(liveHeading);
-            }
+            refreshHeadingAfterOffsetChange();
         }
 
         function appendLine(container, text) {
@@ -691,25 +982,15 @@
             );
         }
 
-        function renderStation(id, record) {
-            const box = document.getElementById(`point-${id.toLowerCase()}-data`);
+        function getHeadingCaptureAgeMs() {
+            if (!lastHeadingCapture) {
+                return Infinity;
+            }
 
-            box.classList.remove("output-error");
-            box.style.display = "block";
-            box.replaceChildren();
-
-            const title = document.createElement("strong");
-            title.textContent = `Station ${id} Stored`;
-
-            box.append(title, document.createElement("br"));
-            appendLine(box, `Lat: ${record.lat.toFixed(6)}`);
-            appendLine(box, `Lon: ${record.lon.toFixed(6)}`);
-            appendLine(box, `GPS Accuracy: ±${Math.round(record.gpsAccuracy)}m`);
-            appendLine(box, `Bearing: ${Math.round(record.head)}°`);
-            appendLine(box, `Recorded: ${new Date(record.timestamp).toLocaleTimeString()}`);
+            return Date.now() - lastHeadingCapture.timestamp;
         }
 
-        function recordStation(id) {
+        function recordObservation() {
             if (
                 liveLat === null ||
                 liveLon === null ||
@@ -720,10 +1001,8 @@
                 return;
             }
 
-            const positionAge = Date.now() - livePositionTimestamp;
-
-            if (positionAge > MAX_POSITION_AGE_MS) {
-                alert("GPS data is stale. Wait for a current position fix.");
+            if (Date.now() - livePositionTimestamp > MAX_POSITION_AGE_MS) {
+                alert("GPS data is stale. Wait for a current GPS fix.");
                 return;
             }
 
@@ -735,26 +1014,141 @@
                 return;
             }
 
-            if (liveHeading === null) {
-                alert("No valid compass heading is available. Start the sensors first.");
+            if (!lastHeadingCapture) {
+                alert("Capture a 3-second heading average before recording.");
                 return;
             }
 
-            const record = {
-                lat: liveLat,
-                lon: liveLon,
-                head: liveHeading,
-                gpsAccuracy: liveAcc,
-                timestamp: livePositionTimestamp
-            };
-
-            if (id === "A") {
-                stationA = record;
-            } else if (id === "B") {
-                stationB = record;
+            if (getHeadingCaptureAgeMs() > MAX_HEADING_CAPTURE_AGE_MS) {
+                alert("The heading capture is stale. Capture a new heading average.");
+                return;
             }
 
-            renderStation(id, record);
+            if (lastHeadingCapture.spread > MAX_HEADING_SPREAD_DEG) {
+                alert(
+                    `Heading spread is too large (±${lastHeadingCapture.spread.toFixed(1)}°). ` +
+                    "Repeat the heading capture while holding the device steady."
+                );
+                return;
+            }
+
+            const observation = {
+                id: nextObservationId++,
+                lat: liveLat,
+                lon: liveLon,
+                head: lastHeadingCapture.heading,
+                headingSpread: lastHeadingCapture.spread,
+                headingSamples: lastHeadingCapture.samples,
+                gpsAccuracy: liveAcc,
+                timestamp: Date.now()
+            };
+
+            observations.push(observation);
+
+            saveSession();
+            renderObservationHistory();
+            calculateEstimate(false);
+
+            invalidateHeadingCapture();
+            setLock(false);
+        }
+
+        function deleteObservation(id) {
+            observations = observations.filter(
+                (observation) => observation.id !== id
+            );
+
+            saveSession();
+            renderObservationHistory();
+            calculateEstimate(false);
+        }
+
+        function observationStatus(observation) {
+            if (!currentSolution) {
+                return {
+                    cssClass: "",
+                    label: "Awaiting Estimate"
+                };
+            }
+
+            if (currentSolution.inlierIds.includes(observation.id)) {
+                return {
+                    cssClass: "inlier",
+                    label: "Used in Estimate"
+                };
+            }
+
+            if (currentSolution.outlierIds.includes(observation.id)) {
+                return {
+                    cssClass: "outlier",
+                    label: "Suspected Outlier"
+                };
+            }
+
+            return {
+                cssClass: "warning",
+                label: "Not Used"
+            };
+        }
+
+        function renderObservationHistory() {
+            const history = document.getElementById("observation-history");
+            history.replaceChildren();
+
+            if (observations.length === 0) {
+                const empty = document.createElement("p");
+                empty.className = "small-note";
+                empty.textContent = "No observations have been recorded.";
+                history.append(empty);
+                return;
+            }
+
+            for (const observation of observations) {
+                const state = observationStatus(observation);
+
+                const row = document.createElement("div");
+                row.className = `observation-row ${state.cssClass}`;
+
+                const header = document.createElement("div");
+                header.className = "observation-header";
+
+                const title = document.createElement("span");
+                title.textContent = `Observation ${observation.id}`;
+
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.className = "observation-remove";
+                removeButton.textContent = "Remove";
+                removeButton.onclick = () => deleteObservation(observation.id);
+
+                header.append(title, removeButton);
+                row.append(header);
+
+                appendLine(row, `Status: ${state.label}`);
+                appendLine(
+                    row,
+                    `Position: ${observation.lat.toFixed(6)}, ${observation.lon.toFixed(6)}`
+                );
+                appendLine(
+                    row,
+                    `GPS Accuracy: ±${Math.round(observation.gpsAccuracy)}m`
+                );
+                appendLine(
+                    row,
+                    `Bearing: ${Math.round(observation.head)}°`
+                );
+                appendLine(
+                    row,
+                    `Heading Spread: ±${observation.headingSpread.toFixed(1)}° ` +
+                    `(${observation.headingSamples} samples)`
+                );
+                appendLine(
+                    row,
+                    `Recorded: ${new Date(observation.timestamp).toLocaleString()}`
+                );
+
+                history.append(row);
+            }
         }
 
         function metersPerDegree(latitudeRadians) {
@@ -772,36 +1166,510 @@
             };
         }
 
+        function buildLocalPoints(records) {
+            const referenceLat = records.reduce(
+                (sum, record) => sum + record.lat,
+                0
+            ) / records.length;
+
+            const referenceLon = records.reduce(
+                (sum, record) => sum + record.lon,
+                0
+            ) / records.length;
+
+            const reference = {
+                lat: referenceLat,
+                lon: referenceLon
+            };
+
+            const referenceRadians = referenceLat * Math.PI / 180;
+            const meters = metersPerDegree(referenceRadians);
+
+            const points = records.map((record) => ({
+                ...record,
+                x: (record.lon - reference.lon) * meters.lon,
+                y: (record.lat - reference.lat) * meters.lat,
+                theta: record.head * Math.PI / 180
+            }));
+
+            return { reference, meters, points };
+        }
+
+        function localToGeographic(x, y, reference, meters) {
+            return {
+                lat: reference.lat + y / meters.lat,
+                lon: reference.lon + x / meters.lon
+            };
+        }
+
+        function bearingFromPointToTarget(point, target) {
+            return normalizeDegrees(
+                Math.atan2(target.x - point.x, target.y - point.y) *
+                180 / Math.PI
+            );
+        }
+
+        function headingThreshold(point) {
+            return Math.max(
+                OUTLIER_MIN_THRESHOLD_DEG,
+                point.headingSpread * OUTLIER_SPREAD_MULTIPLIER
+            );
+        }
+
+        function angularResidual(point, target) {
+            const predictedBearing = bearingFromPointToTarget(point, target);
+            return Math.abs(signedAngleDifference(point.head, predictedBearing));
+        }
+
+        function intersectRays(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+
+            const baseline = Math.hypot(dx, dy);
+            const requiredBaseline = Math.max(
+                MIN_BASELINE_METERS,
+                2 * Math.hypot(a.gpsAccuracy, b.gpsAccuracy)
+            );
+
+            if (baseline < requiredBaseline) {
+                return null;
+            }
+
+            const denominator = Math.sin(a.theta - b.theta);
+            const crossingAngle = Math.asin(
+                Math.min(1, Math.abs(denominator))
+            ) * 180 / Math.PI;
+
+            if (crossingAngle < MIN_INTERSECTION_ANGLE_DEG) {
+                return null;
+            }
+
+            const distanceA =
+                (dx * Math.cos(b.theta) - dy * Math.sin(b.theta)) /
+                denominator;
+
+            const distanceB =
+                (dx * Math.cos(a.theta) - dy * Math.sin(a.theta)) /
+                denominator;
+
+            if (distanceA <= 0 || distanceB <= 0) {
+                return null;
+            }
+
+            return {
+                x: a.x + distanceA * Math.sin(a.theta),
+                y: a.y + distanceA * Math.cos(a.theta),
+                distanceA,
+                distanceB,
+                baseline,
+                crossingAngle
+            };
+        }
+
+        function scoreCandidate(candidate, points) {
+            let inlierCount = 0;
+            let score = 0;
+            const inliers = [];
+
+            for (const point of points) {
+                const residual = angularResidual(point, candidate);
+                const threshold = headingThreshold(point);
+                const normalizedResidual = residual / threshold;
+
+                /*
+                 * Cap each error contribution. This prevents one highly
+                 * inconsistent observation from dominating all candidate scores.
+                 */
+                score += Math.min(normalizedResidual * normalizedResidual, 9);
+
+                if (residual <= threshold) {
+                    inlierCount += 1;
+                    inliers.push(point);
+                }
+            }
+
+            return {
+                inlierCount,
+                score,
+                inliers
+            };
+        }
+
+        function weightForPoint(point) {
+            const headingSigma = Math.max(2, point.headingSpread);
+            const positionSigma = Math.max(3, point.gpsAccuracy);
+
+            /*
+             * Relative weight only. A lower heading spread and lower GPS
+             * uncertainty increase the influence of an observation.
+             */
+            return 1 / (
+                headingSigma * headingSigma +
+                Math.pow(positionSigma / 5, 2)
+            );
+        }
+
+        function weightedLineFit(points) {
+            let a = 0;
+            let b = 0;
+            let c = 0;
+            let d = 0;
+            let e = 0;
+
+            for (const point of points) {
+                /*
+                 * Direction vector: (sin(theta), cos(theta))
+                 * Unit normal vector: (cos(theta), -sin(theta))
+                 */
+                const nx = Math.cos(point.theta);
+                const ny = -Math.sin(point.theta);
+                const weight = weightForPoint(point);
+                const normalDotStation = nx * point.x + ny * point.y;
+
+                a += weight * nx * nx;
+                b += weight * nx * ny;
+                c += weight * ny * ny;
+                d += weight * nx * normalDotStation;
+                e += weight * ny * normalDotStation;
+            }
+
+            const determinant = a * c - b * b;
+
+            if (Math.abs(determinant) < 1e-12) {
+                return null;
+            }
+
+            const x = (d * c - b * e) / determinant;
+            const y = (a * e - b * d) / determinant;
+
+            const trace = a + c;
+            const discriminant = Math.sqrt(
+                Math.max(0, (a - c) * (a - c) + 4 * b * b)
+            );
+
+            const lambdaMax = (trace + discriminant) / 2;
+            const lambdaMin = (trace - discriminant) / 2;
+
+            const conditionNumber = lambdaMin > 0
+                ? lambdaMax / lambdaMin
+                : Infinity;
+
+            return {
+                x,
+                y,
+                conditionNumber
+            };
+        }
+
+        function evaluateGeometry(points, inlierPoints, fit) {
+            const warnings = [];
+            let maxBaseline = 0;
+            let bestCrossingAngle = 0;
+
+            for (let i = 0; i < inlierPoints.length; i++) {
+                for (let j = i + 1; j < inlierPoints.length; j++) {
+                    const a = inlierPoints[i];
+                    const b = inlierPoints[j];
+
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+
+                    const baseline = Math.hypot(dx, dy);
+                    maxBaseline = Math.max(maxBaseline, baseline);
+
+                    const angle = Math.asin(
+                        Math.min(1, Math.abs(Math.sin(a.theta - b.theta)))
+                    ) * 180 / Math.PI;
+
+                    bestCrossingAngle = Math.max(bestCrossingAngle, angle);
+                }
+            }
+
+            const residuals = inlierPoints.map((point) =>
+                angularResidual(point, fit)
+            );
+
+            const meanResidual = residuals.reduce(
+                (sum, value) => sum + value,
+                0
+            ) / residuals.length;
+
+            if (inlierPoints.length < 3) {
+                warnings.push(
+                    "Only two observations support the estimate. Add at least one more observation for improved confidence."
+                );
+            }
+
+            if (bestCrossingAngle < GOOD_INTERSECTION_ANGLE_DEG) {
+                warnings.push(
+                    `Best crossing angle is only ${bestCrossingAngle.toFixed(1)}°. A wider intersection angle generally improves geometry.`
+                );
+            }
+
+            if (fit.conditionNumber > 10) {
+                warnings.push(
+                    `Observation geometry is poorly conditioned (condition number ${fit.conditionNumber.toFixed(1)}). Bearings are too similarly oriented.`
+                );
+            }
+
+            if (meanResidual > 5) {
+                warnings.push(
+                    `Mean inlier bearing residual is ${meanResidual.toFixed(1)}°. Repeat unstable or inconsistent observations if practical.`
+                );
+            }
+
+            if (maxBaseline < MIN_BASELINE_METERS) {
+                warnings.push(
+                    `Maximum baseline is only ${maxBaseline.toFixed(1)}m. Increase station separation.`
+                );
+            }
+
+            let quality = "LOW";
+
+            if (
+                inlierPoints.length >= 3 &&
+                bestCrossingAngle >= GOOD_INTERSECTION_ANGLE_DEG &&
+                fit.conditionNumber <= 5 &&
+                meanResidual <= 5
+            ) {
+                quality = "HIGH";
+            } else if (
+                inlierPoints.length >= 2 &&
+                bestCrossingAngle >= MIN_INTERSECTION_ANGLE_DEG &&
+                fit.conditionNumber <= 10
+            ) {
+                quality = "MEDIUM";
+            }
+
+            return {
+                quality,
+                warnings,
+                maxBaseline,
+                bestCrossingAngle,
+                meanResidual,
+                conditionNumber: fit.conditionNumber
+            };
+        }
+
+        function calculateEstimate(showErrors) {
+            currentSolution = null;
+
+            if (observations.length < 2) {
+                showResultInfo(
+                    "Record at least two observations to calculate an intersection estimate."
+                );
+                renderObservationHistory();
+                drawLocalPlot();
+                return;
+            }
+
+            const geometry = buildLocalPoints(observations);
+            const points = geometry.points;
+
+            const candidates = [];
+
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const candidate = intersectRays(points[i], points[j]);
+
+                    if (candidate) {
+                        candidates.push(candidate);
+                    }
+                }
+            }
+
+            if (candidates.length === 0) {
+                showResultError(
+                    "No valid forward intersection could be calculated. Increase station separation, improve crossing angles, or repeat the observations."
+                );
+                renderObservationHistory();
+                drawLocalPlot();
+                return;
+            }
+
+            let bestCandidate = null;
+            let bestScore = null;
+
+            for (const candidate of candidates) {
+                const evaluation = scoreCandidate(candidate, points);
+
+                if (
+                    !bestScore ||
+                    evaluation.inlierCount > bestScore.inlierCount ||
+                    (
+                        evaluation.inlierCount === bestScore.inlierCount &&
+                        evaluation.score < bestScore.score
+                    )
+                ) {
+                    bestCandidate = candidate;
+                    bestScore = evaluation;
+                }
+            }
+
+            let inlierPoints = bestScore.inliers;
+
+            if (inlierPoints.length < 2) {
+                showResultError(
+                    "No consistent group of at least two forward-bearing observations was found."
+                );
+                renderObservationHistory();
+                drawLocalPlot();
+                return;
+            }
+
+            let fit = weightedLineFit(inlierPoints);
+
+            if (!fit) {
+                showResultError(
+                    "The observation geometry is degenerate and cannot produce a stable estimate."
+                );
+                renderObservationHistory();
+                drawLocalPlot();
+                return;
+            }
+
+            /*
+             * Reclassify observations against the weighted best-fit point, then
+             * perform one final fit using the revised inlier set.
+             */
+            inlierPoints = points.filter(
+                (point) => angularResidual(point, fit) <= headingThreshold(point)
+            );
+
+            if (inlierPoints.length >= 2) {
+                const refinedFit = weightedLineFit(inlierPoints);
+
+                if (refinedFit) {
+                    fit = refinedFit;
+                }
+            }
+
+            const outlierPoints = points.filter(
+                (point) => !inlierPoints.some((inlier) => inlier.id === point.id)
+            );
+
+            const geographicEstimate = localToGeographic(
+                fit.x,
+                fit.y,
+                geometry.reference,
+                geometry.meters
+            );
+
+            const quality = evaluateGeometry(
+                points,
+                inlierPoints,
+                fit
+            );
+
+            currentSolution = {
+                ...geographicEstimate,
+                x: fit.x,
+                y: fit.y,
+                reference: geometry.reference,
+                meters: geometry.meters,
+                points,
+                inlierIds: inlierPoints.map((point) => point.id),
+                outlierIds: outlierPoints.map((point) => point.id),
+                quality
+            };
+
+            showResultSuccess(currentSolution);
+            renderObservationHistory();
+            drawLocalPlot();
+        }
+
+        function triangulate() {
+            calculateEstimate(true);
+        }
+
+        function showResultInfo(message) {
+            const output = document.getElementById("result-box");
+            output.className = "output-box output-warning";
+            output.textContent = message;
+        }
+
         function showResultError(message) {
             const output = document.getElementById("result-box");
-
-            output.style.display = "block";
-            output.classList.add("output-error");
+            output.className = "output-box output-error";
             output.textContent = `Error: ${message}`;
         }
 
-        function showResultSuccess(result) {
+        function showResultSuccess(solution) {
             const output = document.getElementById("result-box");
+            const qualityClass = solution.quality.quality === "HIGH"
+                ? "quality-high"
+                : solution.quality.quality === "MEDIUM"
+                    ? "quality-medium"
+                    : "quality-low";
 
-            output.style.display = "block";
-            output.classList.remove("output-error");
+            output.className = "output-box";
             output.replaceChildren();
 
             const title = document.createElement("strong");
+            title.textContent = "Bearing Intersection Estimate";
             title.style.color = "#16a34a";
-            title.textContent = "Intersection Estimate";
+
+            const quality = document.createElement("span");
+            quality.className = qualityClass;
+            quality.textContent = `Estimate Quality: ${solution.quality.quality}`;
 
             output.append(title, document.createElement("br"));
-            appendLine(output, `Lat: ${result.lat.toFixed(6)}`);
-            appendLine(output, `Lon: ${result.lon.toFixed(6)}`);
-            appendLine(output, `Distance from A: ${Math.round(result.distanceA)}m`);
-            appendLine(output, `Distance from B: ${Math.round(result.distanceB)}m`);
-            appendLine(output, `Baseline: ${Math.round(result.baseline)}m`);
-            appendLine(output, `Crossing Angle: ${Math.round(result.intersectionAngle)}°`);
+            output.append(quality, document.createElement("br"));
+
+            appendLine(output, `Lat: ${solution.lat.toFixed(6)}`);
+            appendLine(output, `Lon: ${solution.lon.toFixed(6)}`);
+            appendLine(
+                output,
+                `Observations Used: ${solution.inlierIds.length} of ${observations.length}`
+            );
+            appendLine(
+                output,
+                `Best Crossing Angle: ${solution.quality.bestCrossingAngle.toFixed(1)}°`
+            );
+            appendLine(
+                output,
+                `Maximum Baseline: ${Math.round(solution.quality.maxBaseline)}m`
+            );
+            appendLine(
+                output,
+                `Mean Bearing Residual: ${solution.quality.meanResidual.toFixed(1)}°`
+            );
+            appendLine(
+                output,
+                `Geometry Condition Number: ${solution.quality.conditionNumber.toFixed(1)}`
+            );
+
+            if (solution.outlierIds.length > 0) {
+                appendLine(
+                    output,
+                    `Suspected Outlier(s): Observation ${solution.outlierIds.join(", ")}`
+                );
+
+                if (observations.length === 3) {
+                    appendLine(
+                        output,
+                        "Note: With only three observations, outlier identification is provisional."
+                    );
+                }
+            }
+
+            if (solution.quality.warnings.length > 0) {
+                output.append(document.createElement("br"));
+
+                const warningTitle = document.createElement("strong");
+                warningTitle.style.color = "#b45309";
+                warningTitle.textContent = "Geometry Warnings:";
+
+                output.append(warningTitle, document.createElement("br"));
+
+                for (const warning of solution.quality.warnings) {
+                    appendLine(output, `• ${warning}`);
+                }
+            }
 
             output.append(document.createElement("br"));
 
-            const coordinates = `${result.lat},${result.lon}`;
+            const coordinates = `${solution.lat},${solution.lon}`;
 
             const appleMapsLink = document.createElement("a");
             appleMapsLink.href =
@@ -828,105 +1696,339 @@
             );
         }
 
-        function triangulate() {
-            if (!stationA || !stationB) {
-                showResultError("Both Station A and Station B must be recorded.");
-                return;
-            }
+        function drawLocalPlot() {
+            const canvas = document.getElementById("local-plot");
+            const context = canvas.getContext("2d");
 
-            const latitudeReference =
-                ((stationA.lat + stationB.lat) / 2) * Math.PI / 180;
+            const width = canvas.width;
+            const height = canvas.height;
+            const margin = 55;
 
-            const meters = metersPerDegree(latitudeReference);
+            context.clearRect(0, 0, width, height);
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, width, height);
 
-            if (meters.lon < 1) {
-                showResultError(
-                    "This local-coordinate approximation is not reliable at this latitude."
+            if (observations.length === 0) {
+                context.fillStyle = "#64748b";
+                context.font = "16px sans-serif";
+                context.textAlign = "center";
+                context.fillText(
+                    "Record observations to display local geometry.",
+                    width / 2,
+                    height / 2
                 );
                 return;
             }
 
-            const dx = (stationB.lon - stationA.lon) * meters.lon;
-            const dy = (stationB.lat - stationA.lat) * meters.lat;
-            const baselineMeters = Math.hypot(dx, dy);
+            let plotPoints;
 
-            const combinedPositionUncertainty = Math.hypot(
-                stationA.gpsAccuracy,
-                stationB.gpsAccuracy
+            if (currentSolution) {
+                plotPoints = currentSolution.points;
+            } else {
+                plotPoints = buildLocalPoints(observations).points;
+            }
+
+            const target = currentSolution
+                ? { x: currentSolution.x, y: currentSolution.y }
+                : null;
+
+            const worldPoints = [...plotPoints];
+
+            if (target) {
+                worldPoints.push(target);
+            }
+
+            let minX = Math.min(...worldPoints.map((point) => point.x));
+            let maxX = Math.max(...worldPoints.map((point) => point.x));
+            let minY = Math.min(...worldPoints.map((point) => point.y));
+            let maxY = Math.max(...worldPoints.map((point) => point.y));
+
+            const minimumSpan = 60;
+            const spanX = Math.max(minimumSpan, maxX - minX);
+            const spanY = Math.max(minimumSpan, maxY - minY);
+            const span = Math.max(spanX, spanY);
+
+            minX -= span * 0.2;
+            maxX += span * 0.2;
+            minY -= span * 0.2;
+            maxY += span * 0.2;
+
+            const worldWidth = maxX - minX;
+            const worldHeight = maxY - minY;
+
+            function toCanvas(point) {
+                return {
+                    x: margin + ((point.x - minX) / worldWidth) * (width - 2 * margin),
+                    y: height - margin - ((point.y - minY) / worldHeight) * (height - 2 * margin)
+                };
+            }
+
+            function drawGrid() {
+                context.strokeStyle = "#e5e7eb";
+                context.lineWidth = 1;
+
+                for (let i = 0; i <= 10; i++) {
+                    const x = margin + i * (width - 2 * margin) / 10;
+                    const y = margin + i * (height - 2 * margin) / 10;
+
+                    context.beginPath();
+                    context.moveTo(x, margin);
+                    context.lineTo(x, height - margin);
+                    context.stroke();
+
+                    context.beginPath();
+                    context.moveTo(margin, y);
+                    context.lineTo(width - margin, y);
+                    context.stroke();
+                }
+
+                context.strokeStyle = "#94a3b8";
+                context.strokeRect(
+                    margin,
+                    margin,
+                    width - 2 * margin,
+                    height - 2 * margin
+                );
+            }
+
+            drawGrid();
+
+            context.save();
+            context.beginPath();
+            context.rect(margin, margin, width - 2 * margin, height - 2 * margin);
+            context.clip();
+
+            const rayLength = Math.max(100, span * 1.2);
+
+            for (const point of plotPoints) {
+                const stationCanvas = toCanvas(point);
+                const isInlier = currentSolution
+                    ? currentSolution.inlierIds.includes(point.id)
+                    : true;
+
+                const isOutlier = currentSolution
+                    ? currentSolution.outlierIds.includes(point.id)
+                    : false;
+
+                const endPoint = target && isInlier
+                    ? target
+                    : {
+                        x: point.x + rayLength * Math.sin(point.theta),
+                        y: point.y + rayLength * Math.cos(point.theta)
+                    };
+
+                const endCanvas = toCanvas(endPoint);
+
+                context.beginPath();
+
+                if (isOutlier) {
+                    context.setLineDash([8, 6]);
+                    context.strokeStyle = "#dc2626";
+                } else {
+                    context.setLineDash([]);
+                    context.strokeStyle = isInlier ? "#0f766e" : "#2563eb";
+                }
+
+                context.lineWidth = 2;
+                context.moveTo(stationCanvas.x, stationCanvas.y);
+                context.lineTo(endCanvas.x, endCanvas.y);
+                context.stroke();
+            }
+
+            context.setLineDash([]);
+
+            for (const point of plotPoints) {
+                const stationCanvas = toCanvas(point);
+                const isOutlier = currentSolution
+                    ? currentSolution.outlierIds.includes(point.id)
+                    : false;
+
+                context.beginPath();
+                context.fillStyle = isOutlier ? "#dc2626" : "#2563eb";
+                context.arc(stationCanvas.x, stationCanvas.y, 6, 0, Math.PI * 2);
+                context.fill();
+
+                context.fillStyle = "#111827";
+                context.font = "12px sans-serif";
+                context.textAlign = "left";
+                context.fillText(
+                    `Obs ${point.id}`,
+                    stationCanvas.x + 9,
+                    stationCanvas.y - 9
+                );
+            }
+
+            if (target) {
+                const targetCanvas = toCanvas(target);
+
+                context.strokeStyle = "#16a34a";
+                context.lineWidth = 3;
+
+                context.beginPath();
+                context.moveTo(targetCanvas.x - 10, targetCanvas.y);
+                context.lineTo(targetCanvas.x + 10, targetCanvas.y);
+                context.moveTo(targetCanvas.x, targetCanvas.y - 10);
+                context.lineTo(targetCanvas.x, targetCanvas.y + 10);
+                context.stroke();
+
+                context.beginPath();
+                context.arc(targetCanvas.x, targetCanvas.y, 5, 0, Math.PI * 2);
+                context.fillStyle = "#16a34a";
+                context.fill();
+
+                context.fillStyle = "#166534";
+                context.font = "bold 12px sans-serif";
+                context.textAlign = "left";
+                context.fillText(
+                    "Estimate",
+                    targetCanvas.x + 12,
+                    targetCanvas.y - 12
+                );
+            }
+
+            context.restore();
+
+            context.fillStyle = "#334155";
+            context.font = "12px sans-serif";
+            context.textAlign = "left";
+            context.fillText("North ↑", margin, 24);
+
+            context.textAlign = "right";
+            context.fillText(
+                `Plot span: approximately ${Math.round(Math.max(worldWidth, worldHeight))}m`,
+                width - margin,
+                24
+            );
+        }
+
+        function saveSession() {
+            const session = {
+                version: 2,
+                headingOffset,
+                observations,
+                nextObservationId
+            };
+
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+            } catch (error) {
+                console.warn("Unable to save session locally:", error);
+            }
+        }
+
+        function loadSession() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+
+                if (!raw) {
+                    return;
+                }
+
+                const saved = JSON.parse(raw);
+
+                if (Array.isArray(saved.observations)) {
+                    observations = saved.observations.filter((observation) =>
+                        Number.isFinite(observation.id) &&
+                        Number.isFinite(observation.lat) &&
+                        Number.isFinite(observation.lon) &&
+                        Number.isFinite(observation.head) &&
+                        Number.isFinite(observation.headingSpread) &&
+                        Number.isFinite(observation.headingSamples) &&
+                        Number.isFinite(observation.gpsAccuracy) &&
+                        Number.isFinite(observation.timestamp)
+                    );
+                }
+
+                if (Number.isFinite(saved.headingOffset)) {
+                    headingOffset = saved.headingOffset;
+                    document.getElementById("heading-offset").value =
+                        Math.round(headingOffset);
+                }
+
+                if (Number.isFinite(saved.nextObservationId)) {
+                    nextObservationId = saved.nextObservationId;
+                } else if (observations.length > 0) {
+                    nextObservationId = Math.max(
+                        ...observations.map((observation) => observation.id)
+                    ) + 1;
+                }
+            } catch (error) {
+                console.warn("Unable to restore saved session:", error);
+            }
+        }
+
+        function exportSession() {
+            const exportData = {
+                exportedAt: new Date().toISOString(),
+                application: "Interference Bearing Triangulator",
+                headingOffset,
+                observations,
+                latestEstimate: currentSolution
+                    ? {
+                        lat: currentSolution.lat,
+                        lon: currentSolution.lon,
+                        inlierObservationIds: currentSolution.inlierIds,
+                        suspectedOutlierIds: currentSolution.outlierIds,
+                        quality: currentSolution.quality
+                    }
+                    : null
+            };
+
+            const blob = new Blob(
+                [JSON.stringify(exportData, null, 2)],
+                { type: "application/json" }
             );
 
-            const requiredBaseline = Math.max(
-                MIN_BASELINE_METERS,
-                2 * combinedPositionUncertainty
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download =
+                `bearing-triangulation-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            URL.revokeObjectURL(url);
+        }
+
+        function clearSession() {
+            if (!confirm("Clear all recorded observations and local saved data?")) {
+                return;
+            }
+
+            observations = [];
+            nextObservationId = 1;
+            currentSolution = null;
+
+            localStorage.removeItem(STORAGE_KEY);
+
+            renderObservationHistory();
+            showResultInfo(
+                "Record at least two observations to calculate an intersection estimate."
             );
+            drawLocalPlot();
+        }
 
-            if (baselineMeters < requiredBaseline) {
-                showResultError(
-                    `Baseline is too short (${baselineMeters.toFixed(1)}m). ` +
-                    `Use a baseline greater than ${requiredBaseline.toFixed(1)}m ` +
-                    "for the recorded GPS accuracy."
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden && isAveraging) {
+                cancelAveraging(
+                    "Heading capture stopped because the page moved to the background."
                 );
-                return;
             }
+        });
 
-            const theta1 = stationA.head * Math.PI / 180;
-            const theta2 = stationB.head * Math.PI / 180;
+        window.addEventListener("pagehide", () => {
+            stopSensors();
+        });
 
-            const denominator = Math.sin(theta1 - theta2);
-            const intersectionAngle =
-                Math.asin(Math.min(1, Math.abs(denominator))) * 180 / Math.PI;
+        loadSession();
+        renderObservationHistory();
+        drawLocalPlot();
 
-            if (intersectionAngle < MIN_INTERSECTION_ANGLE_DEG) {
-                showResultError(
-                    `Bearings intersect at only ${intersectionAngle.toFixed(1)}°. ` +
-                    `Use an intersection angle of at least ${MIN_INTERSECTION_ANGLE_DEG}° ` +
-                    "to reduce geometric uncertainty."
-                );
-                return;
-            }
-
-            /*
-             * Position B relative to A is (dx, dy), where:
-             *   x = east, y = north
-             *
-             * Bearing vector is:
-             *   (sin(theta), cos(theta))
-             */
-            const distanceA =
-                (dx * Math.cos(theta2) - dy * Math.sin(theta2)) / denominator;
-
-            const distanceB =
-                (dx * Math.cos(theta1) - dy * Math.sin(theta1)) / denominator;
-
-            if (distanceA <= 0 && distanceB <= 0) {
-                showResultError("Both bearings point away from the intersection.");
-                return;
-            }
-
-            if (distanceA <= 0) {
-                showResultError("Station A bearing points away from the intersection.");
-                return;
-            }
-
-            if (distanceB <= 0) {
-                showResultError("Station B bearing points away from the intersection.");
-                return;
-            }
-
-            const targetX = distanceA * Math.sin(theta1);
-            const targetY = distanceA * Math.cos(theta1);
-
-            const targetLat = stationA.lat + (targetY / meters.lat);
-            const targetLon = stationA.lon + (targetX / meters.lon);
-
-            showResultSuccess({
-                lat: targetLat,
-                lon: targetLon,
-                distanceA,
-                distanceB,
-                baseline: baselineMeters,
-                intersectionAngle
-            });
+        if (observations.length >= 2) {
+            calculateEstimate(false);
         }
     </script>
 </body>
