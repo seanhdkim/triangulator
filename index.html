@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interference Bearing Triangulator</title>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 16px;
+            background-color: #f4f6f8;
+            color: #1a1a1a;
+            margin: 0;
+        }
+
+        .card {
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 14px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+            color: #0b5cab;
+        }
+
+        h2 {
+            font-size: 16px;
+            margin-top: 0;
+            color: #0b5cab;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+        }
+
+        p {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+
+        button {
+            background-color: #0066cc;
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        button:active {
+            background-color: #004c99;
+        }
+
+        button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible {
+            outline: 3px solid #f59e0b;
+            outline-offset: 2px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-small {
+            font-size: 12px;
+            padding: 8px;
+            margin-top: 0;
+            flex-grow: 1;
+            width: auto;
+            background-color: #64748b;
+        }
+
+        .output-box {
+            background: #f0f7ff;
+            padding: 10px;
+            border-left: 4px solid #0066cc;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 13px;
+            border-radius: 0 4px 4px 0;
+            overflow-wrap: anywhere;
+        }
+
+        .output-error {
+            background: #fef2f2;
+            border-left-color: #dc2626;
+        }
+
+        .calibration-controls {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .calibration-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .calibration-row input {
+            width: 70px;
+            padding: 4px;
+            text-align: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .status-ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-warn {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📡 Interference Bearing Triangulator</h1>
+    <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
+        Hold the phone flat and point its top edge along the observed bearing.
+        Results are estimates and require operational validation.
+    </p>
+
+    <div class="card">
+        <h2>🛰️ Sensor Telemetry</h2>
+
+        <p>
+            GPS Position:
+            <span id="gps-status" class="status-badge status-warn" aria-live="polite">No Fix</span>
+        </p>
+
+        <p style="font-family: monospace; font-size: 13px;">
+            Lat: <span id="live-lat">--</span> |
+            Lon: <span id="live-lon">--</span>
+            (±<span id="live-acc">--</span>m)
+        </p>
+
+        <p>
+            Compass:
+            <span id="sensor-status" class="status-badge status-warn" aria-live="polite">Offline</span>
+        </p>
+
+        <p>
+            Corrected Bearing:
+            <span id="live-heading" style="font-size: 22px; color: #16a34a; font-weight: bold;">--</span>°
+            <span id="lock-indicator" style="margin-left: 8px; font-weight: bold; color: #dc2626; display: none;">
+                🔒 LOCKED
+            </span>
+        </p>
+
+        <p style="font-size: 11px; color: #64748b;">
+            Compass Accuracy: ±<span id="compass-acc">--</span>° |
+            Filtered Sensor Heading: <span id="live-raw-heading">--</span>°
+        </p>
+
+        <div class="btn-group">
+            <button
+                type="button"
+                id="start-sensors-btn"
+                onclick="initializeSensors()"
+                style="flex-grow: 2; margin-top: 0;"
+            >
+                Permit & Start Sensors
+            </button>
+
+            <button
+                type="button"
+                id="lock-btn"
+                onclick="toggleLock()"
+                aria-pressed="false"
+                style="background-color: #0891b2; width: auto; margin-top: 0;"
+            >
+                🔒 Lock
+            </button>
+        </div>
+
+        <button
+            type="button"
+            id="average-btn"
+            onclick="startAveraging()"
+            style="background-color: #7c3aed;"
+        >
+            ⏱️ Capture 3s Average
+        </button>
+
+        <div
+            id="averaging-status"
+            aria-live="polite"
+            style="display: none; background: #f5f3ff; border: 1px solid #ddd6fe; padding: 6px; margin-top: 8px; font-size: 12px; color: #6d28d9; text-align: center; border-radius: 4px;"
+        >
+            Sampling... <span id="avg-countdown">3</span>s
+            (<span id="avg-count">0</span> frames)
+        </div>
+
+        <div class="calibration-controls">
+            <strong>🔧 Heading Correction</strong>
+
+            <div class="calibration-row" style="margin-top: 6px;">
+                <span>Manual correction / trim:</span>
+                <div>
+                    <input
+                        type="number"
+                        id="heading-offset"
+                        value="0"
+                        step="1"
+                        oninput="updateOffsetFromInput()"
+                        aria-label="Heading correction in degrees"
+                    >
+                    °
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button
+                    type="button"
+                    class="btn-small"
+                    onclick="calibrateToKnownHeading(0)"
+                >
+                    Current Direction Is North (0°)
+                </button>
+
+                <button
+                    type="button"
+                    class="btn-small"
+                    onclick="resetCalibration()"
+                    style="background-color: #dc2626;"
+                >
+                    Reset Correction
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📍 Station Observations</h2>
+
+        <button type="button" onclick="recordStation('A')">Record Station A</button>
+        <div
+            id="point-a-data"
+            class="output-box"
+            style="margin-top: 6px; display: none;"
+            aria-live="polite"
+        ></div>
+
+        <button type="button" onclick="recordStation('B')" style="margin-top: 8px;">
+            Record Station B
+        </button>
+        <div
+            id="point-b-data"
+            class="output-box"
+            style="margin-top: 6px; display: none;"
+            aria-live="polite"
+        ></div>
+    </div>
+
+    <div class="card">
+        <h2>🎯 Intersection Estimate</h2>
+
+        <button
+            type="button"
+            onclick="triangulate()"
+            style="background-color: #16a34a;"
+        >
+            Calculate Bearing Intersection
+        </button>
+
+        <div
+            id="result-box"
+            class="output-box"
+            style="margin-top: 10px; display: none;"
+            aria-live="polite"
+        ></div>
+    </div>
+
+    <script>
+        let liveLat = null;
+        let liveLon = null;
+        let liveAcc = null;
+        let livePositionTimestamp = null;
+
+        let liveRawHeading = null;
+        let liveHeading = null;
+        let headingOffset = 0;
+
+        let stationA = null;
+        let stationB = null;
+
+        let geoWatchId = null;
+        let isOrientationActive = false;
+        let isLocked = false;
+        let isAveraging = false;
+
+        let averageReadings = [];
+        let averagingInterval = null;
+        let averagingTimeout = null;
+
+        let smoothedHeading = null;
+
+        const FILTER_FACTOR = 0.20;
+
+        /*
+         * Tune these values for the approved workflow and expected sensor quality.
+         * They are safeguards, not substitutes for operational validation.
+         */
+        const MAX_GPS_ACCURACY_METERS = 30;
+        const MAX_POSITION_AGE_MS = 15000;
+        const MIN_BASELINE_METERS = 10;
+        const MIN_INTERSECTION_ANGLE_DEG = 15;
+
+        function normalizeDegrees(value) {
+            return ((value % 360) + 360) % 360;
+        }
+
+        function smoothDegrees(previous, next, factor) {
+            if (previous === null) {
+                return next;
+            }
+
+            let difference = next - previous;
+
+            if (difference > 180) {
+                difference -= 360;
+            }
+
+            if (difference < -180) {
+                difference += 360;
+            }
+
+            return normalizeDegrees(previous + factor * difference);
+        }
+
+        function setGpsBadge(message, isGood) {
+            const badge = document.getElementById("gps-status");
+            badge.textContent = message;
+            badge.className = isGood
+                ? "status-badge status-ok"
+                : "status-badge status-warn";
+        }
+
+        function setSensorBadge(message, isGood) {
+            const badge = document.getElementById("sensor-status");
+            badge.textContent = message;
+            badge.className = isGood
+                ? "status-badge status-ok"
+                : "status-badge status-warn";
+        }
+
+        function initializeSensors() {
+            startGPS();
+            startOrientation();
+        }
+
+        function startGPS() {
+            if (!window.isSecureContext) {
+                setGpsBadge("HTTPS Required", false);
+                alert("Geolocation requires a secure HTTPS connection.");
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                setGpsBadge("Unsupported", false);
+                alert("Geolocation is not supported by this browser.");
+                return;
+            }
+
+            if (geoWatchId !== null) {
+                return;
+            }
+
+            geoWatchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    liveLat = position.coords.latitude;
+                    liveLon = position.coords.longitude;
+                    liveAcc = position.coords.accuracy;
+                    livePositionTimestamp = position.timestamp;
+
+                    document.getElementById("live-lat").textContent = liveLat.toFixed(6);
+                    document.getElementById("live-lon").textContent = liveLon.toFixed(6);
+                    document.getElementById("live-acc").textContent = Math.round(liveAcc);
+
+                    if (liveAcc <= MAX_GPS_ACCURACY_METERS) {
+                        setGpsBadge("Active Fix", true);
+                    } else {
+                        setGpsBadge(`Low Accuracy (±${Math.round(liveAcc)}m)`, false);
+                    }
+                },
+                (error) => {
+                    setGpsBadge(`GPS Error: ${error.message}`, false);
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 10000
+                }
+            );
+        }
+
+        async function startOrientation() {
+            if (isOrientationActive) {
+                return;
+            }
+
+            if (!window.isSecureContext) {
+                setSensorBadge("HTTPS Required", false);
+                alert("Device orientation access requires a secure HTTPS connection.");
+                return;
+            }
+
+            if (typeof DeviceOrientationEvent === "undefined") {
+                setSensorBadge("Unsupported", false);
+                alert("Device orientation is not supported by this browser.");
+                return;
+            }
+
+            try {
+                if (typeof DeviceOrientationEvent.requestPermission === "function") {
+                    const permissionState = await DeviceOrientationEvent.requestPermission();
+
+                    if (permissionState !== "granted") {
+                        setSensorBadge("Permission Denied", false);
+                        alert("Motion and orientation permission was denied.");
+                        return;
+                    }
+                }
+
+                /*
+                 * Prefer the absolute event where available. The handler still
+                 * rejects relative alpha values unless a platform compass heading
+                 * is provided.
+                 */
+                const eventName = ("ondeviceorientationabsolute" in window)
+                    ? "deviceorientationabsolute"
+                    : "deviceorientation";
+
+                window.addEventListener(eventName, handleDeviceOrientation, true);
+
+                isOrientationActive = true;
+                setSensorBadge("Waiting for Heading", false);
+            } catch (error) {
+                setSensorBadge("Permission Error", false);
+                alert(`Orientation permission error: ${error.message || error}`);
+            }
+        }
+
+        function handleDeviceOrientation(event) {
+            if (isLocked) {
+                return;
+            }
+
+            let rawHeading = null;
+            let hasPlatformCompass = false;
+
+            if (
+                event.webkitCompassHeading !== undefined &&
+                event.webkitCompassHeading !== null &&
+                Number.isFinite(event.webkitCompassHeading)
+            ) {
+                rawHeading = normalizeDegrees(event.webkitCompassHeading);
+                hasPlatformCompass = true;
+
+                if (
+                    Number.isFinite(event.webkitCompassAccuracy) &&
+                    event.webkitCompassAccuracy >= 0
+                ) {
+                    document.getElementById("compass-acc").textContent =
+                        Math.round(event.webkitCompassAccuracy);
+                } else {
+                    document.getElementById("compass-acc").textContent = "Unknown";
+                }
+            } else if (
+                event.alpha !== null &&
+                Number.isFinite(event.alpha) &&
+                (event.absolute === true || event.type === "deviceorientationabsolute")
+            ) {
+                /*
+                 * This fallback is accepted only for an absolute Earth-referenced
+                 * orientation event. Relative alpha values are not valid bearings.
+                 */
+                rawHeading = normalizeDegrees(360 - event.alpha);
+                document.getElementById("compass-acc").textContent = "Unknown";
+            } else {
+                setSensorBadge("No Absolute Heading", false);
+                return;
+            }
+
+            smoothedHeading = smoothDegrees(
+                smoothedHeading,
+                rawHeading,
+                FILTER_FACTOR
+            );
+
+            liveRawHeading = smoothedHeading;
+            liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
+
+            document.getElementById("live-raw-heading").textContent =
+                Math.round(liveRawHeading);
+
+            document.getElementById("live-heading").textContent =
+                Math.round(liveHeading);
+
+            setSensorBadge(
+                hasPlatformCompass
+                    ? "Active (Platform Compass)"
+                    : "Active (Absolute Orientation)",
+                true
+            );
+
+            if (isAveraging) {
+                averageReadings.push(liveHeading);
+                document.getElementById("avg-count").textContent =
+                    averageReadings.length;
+            }
+        }
+
+        function setLock(locked) {
+            isLocked = locked;
+
+            const button = document.getElementById("lock-btn");
+            const indicator = document.getElementById("lock-indicator");
+
+            button.setAttribute("aria-pressed", String(locked));
+
+            if (locked) {
+                button.textContent = "🔓 Unlock";
+                button.style.backgroundColor = "#eab308";
+                indicator.style.display = "inline";
+            } else {
+                button.textContent = "🔒 Lock";
+                button.style.backgroundColor = "#0891b2";
+                indicator.style.display = "none";
+            }
+        }
+
+        function toggleLock() {
+            if (liveHeading === null) {
+                alert("No bearing is available to lock.");
+                return;
+            }
+
+            setLock(!isLocked);
+        }
+
+        function startAveraging() {
+            if (isAveraging || liveHeading === null) {
+                return;
+            }
+
+            if (isLocked) {
+                setLock(false);
+            }
+
+            isAveraging = true;
+            averageReadings = [];
+
+            const averageButton = document.getElementById("average-btn");
+            const statusBox = document.getElementById("averaging-status");
+            const countdown = document.getElementById("avg-countdown");
+
+            averageButton.disabled = true;
+            statusBox.style.display = "block";
+
+            let remaining = 3;
+            countdown.textContent = remaining;
+            document.getElementById("avg-count").textContent = "0";
+
+            averagingInterval = setInterval(() => {
+                remaining -= 1;
+
+                if (remaining >= 0) {
+                    countdown.textContent = remaining;
+                }
+            }, 1000);
+
+            averagingTimeout = setTimeout(() => {
+                clearInterval(averagingInterval);
+
+                isAveraging = false;
+                averageButton.disabled = false;
+                statusBox.style.display = "none";
+
+                if (averageReadings.length === 0) {
+                    alert("No valid heading samples were received.");
+                    return;
+                }
+
+                let sinSum = 0;
+                let cosSum = 0;
+
+                for (const value of averageReadings) {
+                    const radians = value * Math.PI / 180;
+                    sinSum += Math.sin(radians);
+                    cosSum += Math.cos(radians);
+                }
+
+                liveHeading = normalizeDegrees(
+                    Math.atan2(sinSum, cosSum) * 180 / Math.PI
+                );
+
+                document.getElementById("live-heading").textContent =
+                    Math.round(liveHeading);
+
+                setLock(true);
+            }, 3000);
+        }
+
+        function updateOffsetFromInput() {
+            const value = parseFloat(
+                document.getElementById("heading-offset").value
+            );
+
+            if (!Number.isFinite(value)) {
+                return;
+            }
+
+            headingOffset = value;
+
+            if (liveRawHeading !== null) {
+                liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
+
+                document.getElementById("live-heading").textContent =
+                    Math.round(liveHeading);
+            }
+        }
+
+        function calibrateToKnownHeading(knownHeading) {
+            if (liveRawHeading === null) {
+                alert("An active heading is required before calibration.");
+                return;
+            }
+
+            let difference = knownHeading - liveRawHeading;
+            headingOffset = normalizeDegrees(difference + 180) - 180;
+
+            document.getElementById("heading-offset").value =
+                Math.round(headingOffset);
+
+            liveHeading = normalizeDegrees(liveRawHeading + headingOffset);
+
+            document.getElementById("live-heading").textContent =
+                Math.round(liveHeading);
+        }
+
+        function resetCalibration() {
+            headingOffset = 0;
+            document.getElementById("heading-offset").value = "0";
+
+            if (liveRawHeading !== null) {
+                liveHeading = normalizeDegrees(liveRawHeading);
+
+                document.getElementById("live-heading").textContent =
+                    Math.round(liveHeading);
+            }
+        }
+
+        function appendLine(container, text) {
+            container.append(
+                document.createTextNode(text),
+                document.createElement("br")
+            );
+        }
+
+        function renderStation(id, record) {
+            const box = document.getElementById(`point-${id.toLowerCase()}-data`);
+
+            box.classList.remove("output-error");
+            box.style.display = "block";
+            box.replaceChildren();
+
+            const title = document.createElement("strong");
+            title.textContent = `Station ${id} Stored`;
+
+            box.append(title, document.createElement("br"));
+            appendLine(box, `Lat: ${record.lat.toFixed(6)}`);
+            appendLine(box, `Lon: ${record.lon.toFixed(6)}`);
+            appendLine(box, `GPS Accuracy: ±${Math.round(record.gpsAccuracy)}m`);
+            appendLine(box, `Bearing: ${Math.round(record.head)}°`);
+            appendLine(box, `Recorded: ${new Date(record.timestamp).toLocaleTimeString()}`);
+        }
+
+        function recordStation(id) {
+            if (
+                liveLat === null ||
+                liveLon === null ||
+                liveAcc === null ||
+                livePositionTimestamp === null
+            ) {
+                alert("A GPS fix has not been acquired.");
+                return;
+            }
+
+            const positionAge = Date.now() - livePositionTimestamp;
+
+            if (positionAge > MAX_POSITION_AGE_MS) {
+                alert("GPS data is stale. Wait for a current position fix.");
+                return;
+            }
+
+            if (liveAcc > MAX_GPS_ACCURACY_METERS) {
+                alert(
+                    `GPS accuracy is too low (±${Math.round(liveAcc)}m). ` +
+                    "Move to an area with a better GPS fix before recording."
+                );
+                return;
+            }
+
+            if (liveHeading === null) {
+                alert("No valid compass heading is available. Start the sensors first.");
+                return;
+            }
+
+            const record = {
+                lat: liveLat,
+                lon: liveLon,
+                head: liveHeading,
+                gpsAccuracy: liveAcc,
+                timestamp: livePositionTimestamp
+            };
+
+            if (id === "A") {
+                stationA = record;
+            } else if (id === "B") {
+                stationB = record;
+            }
+
+            renderStation(id, record);
+        }
+
+        function metersPerDegree(latitudeRadians) {
+            return {
+                lat:
+                    111132.92
+                    - 559.82 * Math.cos(2 * latitudeRadians)
+                    + 1.175 * Math.cos(4 * latitudeRadians)
+                    - 0.0023 * Math.cos(6 * latitudeRadians),
+
+                lon:
+                    111412.84 * Math.cos(latitudeRadians)
+                    - 93.5 * Math.cos(3 * latitudeRadians)
+                    + 0.118 * Math.cos(5 * latitudeRadians)
+            };
+        }
+
+        function showResultError(message) {
+            const output = document.getElementById("result-box");
+
+            output.style.display = "block";
+            output.classList.add("output-error");
+            output.textContent = `Error: ${message}`;
+        }
+
+        function showResultSuccess(result) {
+            const output = document.getElementById("result-box");
+
+            output.style.display = "block";
+            output.classList.remove("output-error");
+            output.replaceChildren();
+
+            const title = document.createElement("strong");
+            title.style.color = "#16a34a";
+            title.textContent = "Intersection Estimate";
+
+            output.append(title, document.createElement("br"));
+            appendLine(output, `Lat: ${result.lat.toFixed(6)}`);
+            appendLine(output, `Lon: ${result.lon.toFixed(6)}`);
+            appendLine(output, `Distance from A: ${Math.round(result.distanceA)}m`);
+            appendLine(output, `Distance from B: ${Math.round(result.distanceB)}m`);
+            appendLine(output, `Baseline: ${Math.round(result.baseline)}m`);
+            appendLine(output, `Crossing Angle: ${Math.round(result.intersectionAngle)}°`);
+
+            output.append(document.createElement("br"));
+
+            const coordinates = `${result.lat},${result.lon}`;
+
+            const appleMapsLink = document.createElement("a");
+            appleMapsLink.href =
+                `https://maps.apple.com/?q=${encodeURIComponent(coordinates)}`;
+            appleMapsLink.target = "_blank";
+            appleMapsLink.rel = "noopener noreferrer";
+            appleMapsLink.style.color = "#0066cc";
+            appleMapsLink.style.fontWeight = "bold";
+            appleMapsLink.textContent = "Open in Apple Maps";
+
+            const googleMapsLink = document.createElement("a");
+            googleMapsLink.href =
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
+            googleMapsLink.target = "_blank";
+            googleMapsLink.rel = "noopener noreferrer";
+            googleMapsLink.style.color = "#0066cc";
+            googleMapsLink.style.fontWeight = "bold";
+            googleMapsLink.textContent = "Google Maps";
+
+            output.append(
+                appleMapsLink,
+                document.createTextNode(" | "),
+                googleMapsLink
+            );
+        }
+
+        function triangulate() {
+            if (!stationA || !stationB) {
+                showResultError("Both Station A and Station B must be recorded.");
+                return;
+            }
+
+            const latitudeReference =
+                ((stationA.lat + stationB.lat) / 2) * Math.PI / 180;
+
+            const meters = metersPerDegree(latitudeReference);
+
+            if (meters.lon < 1) {
+                showResultError(
+                    "This local-coordinate approximation is not reliable at this latitude."
+                );
+                return;
+            }
+
+            const dx = (stationB.lon - stationA.lon) * meters.lon;
+            const dy = (stationB.lat - stationA.lat) * meters.lat;
+            const baselineMeters = Math.hypot(dx, dy);
+
+            const combinedPositionUncertainty = Math.hypot(
+                stationA.gpsAccuracy,
+                stationB.gpsAccuracy
+            );
+
+            const requiredBaseline = Math.max(
+                MIN_BASELINE_METERS,
+                2 * combinedPositionUncertainty
+            );
+
+            if (baselineMeters < requiredBaseline) {
+                showResultError(
+                    `Baseline is too short (${baselineMeters.toFixed(1)}m). ` +
+                    `Use a baseline greater than ${requiredBaseline.toFixed(1)}m ` +
+                    "for the recorded GPS accuracy."
+                );
+                return;
+            }
+
+            const theta1 = stationA.head * Math.PI / 180;
+            const theta2 = stationB.head * Math.PI / 180;
+
+            const denominator = Math.sin(theta1 - theta2);
+            const intersectionAngle =
+                Math.asin(Math.min(1, Math.abs(denominator))) * 180 / Math.PI;
+
+            if (intersectionAngle < MIN_INTERSECTION_ANGLE_DEG) {
+                showResultError(
+                    `Bearings intersect at only ${intersectionAngle.toFixed(1)}°. ` +
+                    `Use an intersection angle of at least ${MIN_INTERSECTION_ANGLE_DEG}° ` +
+                    "to reduce geometric uncertainty."
+                );
+                return;
+            }
+
+            /*
+             * Position B relative to A is (dx, dy), where:
+             *   x = east, y = north
+             *
+             * Bearing vector is:
+             *   (sin(theta), cos(theta))
+             */
+            const distanceA =
+                (dx * Math.cos(theta2) - dy * Math.sin(theta2)) / denominator;
+
+            const distanceB =
+                (dx * Math.cos(theta1) - dy * Math.sin(theta1)) / denominator;
+
+            if (distanceA <= 0 && distanceB <= 0) {
+                showResultError("Both bearings point away from the intersection.");
+                return;
+            }
+
+            if (distanceA <= 0) {
+                showResultError("Station A bearing points away from the intersection.");
+                return;
+            }
+
+            if (distanceB <= 0) {
+                showResultError("Station B bearing points away from the intersection.");
+                return;
+            }
+
+            const targetX = distanceA * Math.sin(theta1);
+            const targetY = distanceA * Math.cos(theta1);
+
+            const targetLat = stationA.lat + (targetY / meters.lat);
+            const targetLon = stationA.lon + (targetX / meters.lon);
+
+            showResultSuccess({
+                lat: targetLat,
+                lon: targetLon,
+                distanceA,
+                distanceB,
+                baseline: baselineMeters,
+                intersectionAngle
+            });
+        }
+    </script>
+</body>
+</html>
